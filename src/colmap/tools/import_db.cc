@@ -45,8 +45,12 @@ void ImportImages(const std::string& database_path,
 
   Database database(options.database_path);
   ImageReader image_reader(options, &database);
+  LOG(INFO) << "Importing images into the database...\n";
 
-  while (image_reader.NextIndex() < image_reader.NumImages()) {
+  for (unsigned long a : tq::trange(image_reader.NumImages())) {
+    if (image_reader.NextIndex() >= image_reader.NumImages()){
+      break;
+    }
     Camera camera;
     Image image;
     Bitmap bitmap;
