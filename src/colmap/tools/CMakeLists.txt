@@ -30,4 +30,20 @@
 
 set(FOLDER_NAME "tools")
 
-# COLMAP_ADD_EXECUTABLE(example example.cc)
+find_package(HDF5 REQUIRED COMPONENTS CXX)
+
+
+#COLMAP_ADD_EXECUTABLE(example example.cc )
+COLMAP_ADD_EXECUTABLE(NAME import_db SRCS import_db.cc tqdm.h
+        LINK_LIBS
+
+        colmap_controllers
+        colmap_retrieval
+        colmap_scene
+        colmap_sfm
+        colmap_util
+        colmap_exe
+        ${OPTIONAL_LIBS}
+        Boost::boost
+        HDF5::HDF5
+)
