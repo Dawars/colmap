@@ -375,6 +375,7 @@ int main(int argc, char** argv) {
   std::signal(SIGSEGV, signalHandler);
   std::signal(SIGINT, signalHandler);
   std::signal(SIGABRT, signalHandler);
+  std::signal(SIGHUP, signalHandler);
 
   OptionManager options;
   std::string database_path, pairs_path, features_path, matches_path,
