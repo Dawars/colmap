@@ -8,6 +8,7 @@
 #include "colmap/util/logging.h"
 #include "colmap/util/misc.h"
 
+#include <csignal>
 #include <filesystem>
 #include <iostream>
 #include <map>
@@ -28,6 +29,7 @@ using namespace colmap;
 
 namespace fs = std::filesystem;
 
+std::atomic<int> gSignalThatStoppedMe = -1;
 void ImportImages(const std::string& database_path,
                   const std::string& image_path,
                   const CameraMode camera_mode,
@@ -43,11 +45,16 @@ void ImportImages(const std::string& database_path,
   UpdateImageReaderOptionsFromCameraMode(options, camera_mode);
 
   Database database(options.database_path);
+  DatabaseTransaction database_transaction(&database);
   ImageReader image_reader(options, &database);
   LOG(INFO) << "Importing images into the database...\n";
 
-  for ([[maybe_unused]] unsigned long a : tq::trange(image_reader.NumImages())) {
+  for ([[maybe_unused]] unsigned long a :
+       tq::trange(image_reader.NumImages())) {
     if (image_reader.NextIndex() >= image_reader.NumImages()) {
+      break;
+    }
+    if (gSignalThatStoppedMe.load() != -1) {  // gracefully stop
       break;
     }
     Camera camera;
@@ -57,7 +64,6 @@ void ImportImages(const std::string& database_path,
         ImageReader::Status::SUCCESS) {
       continue;
     }
-    DatabaseTransaction database_transaction(&database);
     if (image.ImageId() == kInvalidImageId) {
       image.SetImageId(database.WriteImage(image));
     }
@@ -149,6 +155,9 @@ void ImportFeatures(std::unordered_map<std::string, int>& image_ids,
   Database db(database_path);
   DatabaseTransaction database_transaction(&db);
   for (const auto& item : tq::tqdm(image_ids)) {
+    if (gSignalThatStoppedMe.load() != -1) {  // gracefully stop
+      break;
+    }
     auto& image_name = item.first;
     auto& image_id = item.second;
     FeatureKeypointsBlob keypoints = get_keypoints(features_path, image_name);
@@ -323,7 +332,11 @@ void ImportMatches(const std::unordered_map<std::string, int>& image_ids,
     matched.insert(pair);
     matched.insert({pair.second, pair.first});
   }*/
-  for (auto idx : tq::trange(start_index, pairs.size())){
+  for (auto idx : tq::trange(start_index, pairs.size())) {
+    if (gSignalThatStoppedMe.load() != -1) {  // gracefully stop
+        break;
+    }
+
     const auto& [name0, name1] = pairs[idx];
     int id0 = image_ids.at(name0);
     int id1 = image_ids.at(name1);
@@ -350,8 +363,18 @@ void ImportMatches(const std::unordered_map<std::string, int>& image_ids,
   }
 }
 
+void signalHandler(int signum) {
+  LOG(INFO) << "Interrupt signal (" << signum << ") received.\n";
+  gSignalThatStoppedMe.store(signum);
+}
+
 int main(int argc, char** argv) {
   colmap::InitializeGlog(argv);
+
+  std::signal(SIGTERM, signalHandler);
+  std::signal(SIGSEGV, signalHandler);
+  std::signal(SIGINT, signalHandler);
+  std::signal(SIGABRT, signalHandler);
 
   OptionManager options;
   std::string database_path, pairs_path, features_path, matches_path,
@@ -400,7 +423,13 @@ int main(int argc, char** argv) {
     ImportFeatures(image_ids, database_path, features_path);
   }
   if (import_matches) {
-    ImportMatches(image_ids, database_path, pairs_path, matches_path, std::nullopt, false, matches_start);
+    ImportMatches(image_ids,
+                  database_path,
+                  pairs_path,
+                  matches_path,
+                  std::nullopt,
+                  false,
+                  matches_start);
   }
 
   return 0;
