@@ -55,6 +55,7 @@ void ImportImages(const std::string& database_path,
       break;
     }
     if (gSignalThatStoppedMe.load() != -1) {  // gracefully stop
+      LOG(INFO) << "Stopping at " << image_reader.NextIndex() << "\n";
       break;
     }
     Camera camera;
@@ -156,6 +157,7 @@ void ImportFeatures(std::unordered_map<std::string, int>& image_ids,
   DatabaseTransaction database_transaction(&db);
   for (const auto& item : tq::tqdm(image_ids)) {
     if (gSignalThatStoppedMe.load() != -1) {  // gracefully stop
+      LOG(INFO) << "Stopping at " << idx << "\n";
       break;
     }
     auto& image_name = item.first;
@@ -334,6 +336,7 @@ void ImportMatches(const std::unordered_map<std::string, int>& image_ids,
   }*/
   for (auto idx : tq::trange(start_index, pairs.size())) {
     if (gSignalThatStoppedMe.load() != -1) {  // gracefully stop
+        LOG(INFO) << "Stopping at " << idx << "\n";
         break;
     }
 
