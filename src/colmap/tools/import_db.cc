@@ -371,6 +371,8 @@ void signalHandler(int signum) {
 int main(int argc, char** argv) {
   colmap::InitializeGlog(argv);
 
+  LOG(INFO) << "Setting signal handlers";
+
   std::signal(SIGTERM, signalHandler);
   std::signal(SIGSEGV, signalHandler);
   std::signal(SIGINT, signalHandler);
