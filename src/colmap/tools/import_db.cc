@@ -326,7 +326,7 @@ void ImportMatches(const std::unordered_map<std::string, int>& image_ids,
   Database db(database_path);
   DatabaseTransaction database_transaction(&db);
 
-  std::set<std::pair<int, int>> matched;
+  // std::set<std::pair<int, int>> matched;
 
   auto matches = db.ReadAllMatches();
   /*for (const auto& [image_pair_t, FeatureMatches] : matches) {
@@ -344,9 +344,9 @@ void ImportMatches(const std::unordered_map<std::string, int>& image_ids,
     int id0 = image_ids.at(name0);
     int id1 = image_ids.at(name1);
 
-    if (matched.count({id0, id1}) > 0 || matched.count({id1, id0}) > 0) {
+    /*if (matched.count({id0, id1}) > 0 || matched.count({id1, id0}) > 0) {
       continue;
-    }
+    }*/
 
     auto [matches, scores] = get_matches(matches_path, name0, name1);
     /*
@@ -360,9 +360,13 @@ void ImportMatches(const std::unordered_map<std::string, int>& image_ids,
           matches = std::move(filtered_matches);
         }*/
 
-    db.WriteMatches(id0, id1, matches);
-    matched.insert({id0, id1});
-    matched.insert({id1, id0});
+    try {
+        db.WriteMatches(id0, id1, matches);
+    } catch(std::runtime_error err){
+      LOG(ERROR) << "Stopping at " << idx << "\n";
+    }
+//    matched.insert({id0, id1});
+//    matched.insert({id1, id0});
   }
 }
 
@@ -374,7 +378,7 @@ void signalHandler(int signum) {
 int main(int argc, char** argv) {
   colmap::InitializeGlog(argv);
 
-  LOG(INFO) << "Setting signal handlers";
+  LOG(INFO) << "\nSetting signal handlers\n";
 
   std::signal(SIGTERM, signalHandler);
   std::signal(SIGSEGV, signalHandler);
