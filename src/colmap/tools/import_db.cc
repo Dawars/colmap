@@ -324,7 +324,7 @@ void ImportMatches(const std::unordered_map<std::string, int>& image_ids,
 
   // Connect to the database
   Database db(database_path);
-  DatabaseTransaction database_transaction(&db);
+  std::unique_ptr<DatabaseTransaction> database_transaction;
 
   // std::set<std::pair<int, int>> matched;
 
@@ -338,6 +338,11 @@ void ImportMatches(const std::unordered_map<std::string, int>& image_ids,
     if (gSignalThatStoppedMe.load() != -1) {  // gracefully stop
         LOG(INFO) << "Stopping at " << idx << "\n";
         break;
+    }
+    if (idx % 10000 == 0) {
+      LOG(INFO) << "Creating database transaction\n";
+
+      database_transaction = std::make_unique<DatabaseTransaction>(&db);
     }
 
     const auto& [name0, name1] = pairs[idx];
