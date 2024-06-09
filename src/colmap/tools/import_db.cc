@@ -157,7 +157,7 @@ void ImportFeatures(std::unordered_map<std::string, int>& image_ids,
   DatabaseTransaction database_transaction(&db);
   for (const auto& item : tq::tqdm(image_ids)) {
     if (gSignalThatStoppedMe.load() != -1) {  // gracefully stop
-      LOG(INFO) << "Stopping at " << idx << "\n";
+      LOG(INFO) << "Stopping at " << item.first << " " << item.second << "\n";
       break;
     }
     auto& image_name = item.first;
