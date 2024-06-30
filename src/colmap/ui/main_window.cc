@@ -34,6 +34,10 @@
 
 #include <clocale>
 
+#include "ui/main_window.h"
+
+#include "util/version.h"
+
 namespace colmap {
 
 MainWindow::MainWindow(const OptionManager& options)
@@ -608,6 +612,14 @@ void MainWindow::CreateControllers() {
   if (mapper_controller_) {
     mapper_controller_->Stop();
     mapper_controller_->Wait();
+  }
+
+  if (!options_.mapper->image_list_path.empty()) {
+    const auto image_names = ReadTextFileLines(options_.mapper->image_list_path);
+    options_.mapper->image_names =
+        std::unordered_set<std::string>(image_names.begin(), image_names.end());
+  } else {
+    options_.mapper->image_names.clear();
   }
 
   mapper_controller_ =
