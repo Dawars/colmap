@@ -34,10 +34,6 @@
 
 #include <clocale>
 
-#include "ui/main_window.h"
-
-#include "util/version.h"
-
 namespace colmap {
 
 MainWindow::MainWindow(const OptionManager& options)
