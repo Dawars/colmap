@@ -51,13 +51,13 @@ void MatchFeatures(const std::string& database_path,
 
 void verify_matches(const std::string& database_path,
                     const std::string& pairs_path,
-                    const TwoViewGeometryOptions& verification_options) {
+                    const TwoViewGeometryOptions& verification_options,
+                    const SiftMatchingOptions sift_options) {
   THROW_CHECK_FILE_EXISTS(database_path);
   THROW_CHECK_FILE_EXISTS(pairs_path);
   py::gil_scoped_release release;  // verification is multi-threaded
 
-  SiftMatchingOptions sift_options;
-  sift_options.use_gpu = false;
+//  sift_options.use_gpu = false;
 
   ImagePairsMatchingOptions matcher_options;
   matcher_options.match_list_path = pairs_path;
@@ -215,6 +215,8 @@ void BindMatchFeatures(py::module& m) {
   auto verification_options =
       m.attr("TwoViewGeometryOptions")().cast<TwoViewGeometryOptions>();
 
+  auto sift_options = PySiftMatchingOptions().cast<SMOpts>();
+
   m.def("match_exhaustive",
         &MatchFeatures<EMOpts, CreateExhaustiveFeatureMatcher>,
         "database_path"_a,
@@ -256,6 +258,7 @@ void BindMatchFeatures(py::module& m) {
         "database_path"_a,
         "pairs_path"_a,
         "options"_a = verification_options,
+        "sift_options"_a = verification_options,
         "Run geometric verification of the matches");
 
   py::class_<PairGenerator>(m, "PairGenerator")
