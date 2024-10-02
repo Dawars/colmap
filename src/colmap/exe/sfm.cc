@@ -251,7 +251,7 @@ int RunIncrementalModelRefiner(int argc, char** argv) {
   }
 
   auto reconstruction_manager = std::make_shared<ReconstructionManager>();
-  IncrementalMapperController mapper(
+  IncrementalPipeline mapper(
       options.mapper, *options.image_path, *options.database_path, reconstruction_manager);
   mapper.TriangulateReconstruction(reconstruction, image_ids_fixed_poses);
 
