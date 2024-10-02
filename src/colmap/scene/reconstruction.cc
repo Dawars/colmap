@@ -36,7 +36,7 @@
 #include "colmap/scene/projection.h"
 #include "colmap/scene/reconstruction_io.h"
 #include "colmap/sensor/bitmap.h"
-#include "colmap/util/misc.h"
+#include "colmap/util/file.h"
 #include "colmap/util/ply.h"
 
 namespace colmap {
@@ -117,6 +117,13 @@ void Reconstruction::AddCamera(struct Camera camera) {
 }
 
 void Reconstruction::AddImage(class Image image) {
+  THROW_CHECK(image.HasCameraId());
+  auto& camera = Camera(image.CameraId());
+  if (image.HasCameraPtr()) {
+    THROW_CHECK_EQ(image.CameraPtr(), &camera);
+  } else {
+    image.SetCameraPtr(&camera);
+  }
   const image_t image_id = image.ImageId();
   const bool is_registered = image.IsRegistered();
   THROW_CHECK(images_.emplace(image_id, std::move(image)).second);
@@ -230,6 +237,7 @@ void Reconstruction::DeleteAllPoints2DAndPoints3D() {
     new_image.SetImageId(image.second.ImageId());
     new_image.SetName(image.second.Name());
     new_image.SetCameraId(image.second.CameraId());
+    new_image.SetCameraPtr(image.second.CameraPtr());
     new_image.SetRegistered(image.second.IsRegistered());
     new_image.CamFromWorld() = image.second.CamFromWorld();
     image.second = std::move(new_image);
@@ -261,32 +269,35 @@ void Reconstruction::DeRegisterImage(const image_t image_id) {
       reg_image_ids_.end());
 }
 
-void Reconstruction::Normalize(const double extent,
-                               const double p0,
-                               const double p1,
-                               const bool use_images) {
+Sim3d Reconstruction::Normalize(const bool fixed_scale,
+                                const double extent,
+                                const double p0,
+                                const double p1,
+                                const bool use_images) {
   THROW_CHECK_GT(extent, 0);
 
   if ((use_images && reg_image_ids_.size() < 2) ||
       (!use_images && points3D_.size() < 2)) {
-    return;
+    return Sim3d();
   }
 
   auto bound = ComputeBoundsAndCentroid(p0, p1, use_images);
 
   // Calculate scale and translation, such that
   // translation is applied before scaling.
-  const double old_extent = (std::get<1>(bound) - std::get<0>(bound)).norm();
-  double scale;
-  if (old_extent < std::numeric_limits<double>::epsilon()) {
-    scale = 1;
-  } else {
-    scale = extent / old_extent;
+  double scale = 1.;
+  if (!fixed_scale) {
+    const double old_extent = (std::get<1>(bound) - std::get<0>(bound)).norm();
+    if (old_extent >= std::numeric_limits<double>::epsilon()) {
+      scale = extent / old_extent;
+    }
   }
 
   Sim3d tform(
       scale, Eigen::Quaterniond::Identity(), -scale * std::get<2>(bound));
   Transform(tform);
+
+  return tform;
 }
 
 Eigen::Vector3d Reconstruction::ComputeCentroid(const double p0,
@@ -387,6 +398,7 @@ Reconstruction Reconstruction::Crop(
   for (const auto& image : images_) {
     auto new_image = image.second;
     new_image.SetRegistered(false);
+    new_image.ResetCameraPtr();
     const auto num_points2D = new_image.NumPoints2D();
     for (point2D_t point2D_idx = 0; point2D_idx < num_points2D; ++point2D_idx) {
       new_image.ResetPoint3DForPoint2D(point2D_idx);
@@ -518,7 +530,7 @@ void Reconstruction::UpdatePoint3DErrors() {
     for (const auto& track_el : point3D.second.track.Elements()) {
       const auto& image = Image(track_el.image_id);
       const auto& point2D = image.Point2D(track_el.point2D_idx);
-      const auto& camera = Camera(image.CameraId());
+      const auto& camera = *image.CameraPtr();
       point3D.second.error += std::sqrt(CalculateSquaredReprojectionError(
           point2D.xy, point3D.second.xyz, image.CamFromWorld(), camera));
     }

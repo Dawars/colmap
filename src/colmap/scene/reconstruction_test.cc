@@ -31,12 +31,23 @@
 
 #include "colmap/geometry/pose.h"
 #include "colmap/geometry/sim3.h"
+#include "colmap/scene/synthetic.h"
 #include "colmap/sensor/models.h"
 
 #include <gtest/gtest.h>
 
 namespace colmap {
 namespace {
+
+// Check if all camera pointers are correctly set
+bool CheckReconstruction(const Reconstruction& reconstruction) {
+  for (const auto& image : reconstruction.Images()) {
+    if (!image.second.HasCameraPtr()) return false;
+    auto& camera = reconstruction.Camera(image.second.CameraId());
+    if (image.second.CameraPtr() != &camera) return false;
+  }
+  return true;
+}
 
 void GenerateReconstruction(const image_t num_images,
                             Reconstruction* reconstruction) {
@@ -83,18 +94,24 @@ TEST(Reconstruction, AddCamera) {
 
 TEST(Reconstruction, AddImage) {
   Reconstruction reconstruction;
+  Camera camera =
+      Camera::CreateFromModelId(1, CameraModelId::kSimplePinhole, 1, 1, 1);
   Image image;
+  image.SetCameraId(camera.camera_id);
   image.SetImageId(1);
+  EXPECT_ANY_THROW(reconstruction.AddImage(image));
+  reconstruction.AddCamera(camera);
   reconstruction.AddImage(image);
   EXPECT_TRUE(reconstruction.ExistsImage(1));
   EXPECT_EQ(reconstruction.Image(1).ImageId(), 1);
   EXPECT_FALSE(reconstruction.Image(1).IsRegistered());
   EXPECT_EQ(reconstruction.Images().count(1), 1);
   EXPECT_EQ(reconstruction.Images().size(), 1);
-  EXPECT_EQ(reconstruction.NumCameras(), 0);
+  EXPECT_EQ(reconstruction.NumCameras(), 1);
   EXPECT_EQ(reconstruction.NumImages(), 1);
   EXPECT_EQ(reconstruction.NumRegImages(), 0);
   EXPECT_EQ(reconstruction.NumPoints3D(), 0);
+  EXPECT_TRUE(CheckReconstruction(reconstruction));
 }
 
 TEST(Reconstruction, AddPoint3D) {
@@ -216,30 +233,52 @@ TEST(Reconstruction, Normalize) {
   reconstruction.DeRegisterImage(1);
   reconstruction.DeRegisterImage(2);
   reconstruction.DeRegisterImage(3);
-  reconstruction.Normalize();
+  reconstruction.Normalize(/*fixed_scale=*/false);
   EXPECT_NEAR(
       reconstruction.Image(1).CamFromWorld().translation.z(), -10, 1e-6);
   EXPECT_NEAR(reconstruction.Image(2).CamFromWorld().translation.z(), 0, 1e-6);
   EXPECT_NEAR(reconstruction.Image(3).CamFromWorld().translation.z(), 10, 1e-6);
+  reconstruction.Image(1).CamFromWorld().translation.z() = -20.0;
+  reconstruction.Image(2).CamFromWorld().translation.z() = -10.0;
+  reconstruction.Image(3).CamFromWorld().translation.z() = 0.0;
   reconstruction.RegisterImage(1);
   reconstruction.RegisterImage(2);
   reconstruction.RegisterImage(3);
-  reconstruction.Normalize();
+  reconstruction.Normalize(/*fixed_scale=*/true);
+  EXPECT_NEAR(
+      reconstruction.Image(1).CamFromWorld().translation.z(), -10, 1e-6);
+  EXPECT_NEAR(reconstruction.Image(2).CamFromWorld().translation.z(), 0, 1e-6);
+  EXPECT_NEAR(reconstruction.Image(3).CamFromWorld().translation.z(), 10, 1e-6);
+  reconstruction.Normalize(/*fixed_scale=*/false);
   EXPECT_NEAR(reconstruction.Image(1).CamFromWorld().translation.z(), -5, 1e-6);
   EXPECT_NEAR(reconstruction.Image(2).CamFromWorld().translation.z(), 0, 1e-6);
   EXPECT_NEAR(reconstruction.Image(3).CamFromWorld().translation.z(), 5, 1e-6);
-  reconstruction.Normalize(5);
+  reconstruction.Normalize(/*fixed_scale=*/false, 5);
   EXPECT_NEAR(
       reconstruction.Image(1).CamFromWorld().translation.z(), -2.5, 1e-6);
   EXPECT_NEAR(reconstruction.Image(2).CamFromWorld().translation.z(), 0, 1e-6);
   EXPECT_NEAR(
       reconstruction.Image(3).CamFromWorld().translation.z(), 2.5, 1e-6);
-  reconstruction.Normalize(10, 0.0, 1.0);
+  reconstruction.Normalize(/*fixed_scale=*/false, 10, 0.0, 1.0);
   EXPECT_NEAR(reconstruction.Image(1).CamFromWorld().translation.z(), -5, 1e-6);
   EXPECT_NEAR(reconstruction.Image(2).CamFromWorld().translation.z(), 0, 1e-6);
   EXPECT_NEAR(reconstruction.Image(3).CamFromWorld().translation.z(), 5, 1e-6);
-  reconstruction.Normalize(20);
+  const Sim3d tform = reconstruction.Normalize(/*fixed_scale=*/false, 20);
+  EXPECT_NEAR(
+      reconstruction.Image(1).CamFromWorld().translation.z(), -10, 1e-6);
+  EXPECT_NEAR(reconstruction.Image(2).CamFromWorld().translation.z(), 0, 1e-6);
+  EXPECT_NEAR(reconstruction.Image(3).CamFromWorld().translation.z(), 10, 1e-6);
+  reconstruction.Transform(Inverse(tform));
+  EXPECT_NEAR(reconstruction.Image(1).CamFromWorld().translation.z(), -5, 1e-6);
+  EXPECT_NEAR(reconstruction.Image(2).CamFromWorld().translation.z(), 0, 1e-6);
+  EXPECT_NEAR(reconstruction.Image(3).CamFromWorld().translation.z(), 5, 1e-6);
+  reconstruction.Transform(tform);
+  EXPECT_NEAR(
+      reconstruction.Image(1).CamFromWorld().translation.z(), -10, 1e-6);
+  EXPECT_NEAR(reconstruction.Image(2).CamFromWorld().translation.z(), 0, 1e-6);
+  EXPECT_NEAR(reconstruction.Image(3).CamFromWorld().translation.z(), 10, 1e-6);
   Image image;
+  image.SetCameraId(reconstruction.Image(1).CameraId());
   image.SetImageId(4);
   reconstruction.AddImage(image);
   reconstruction.RegisterImage(4);
@@ -257,7 +296,7 @@ TEST(Reconstruction, Normalize) {
   reconstruction.Image(6).CamFromWorld().translation.z() = 5.0;
   reconstruction.Image(7).CamFromWorld().translation.z() = 7.5;
   reconstruction.RegisterImage(7);
-  reconstruction.Normalize(10, 0.0, 1.0);
+  reconstruction.Normalize(/*fixed_scale=*/false, 10, 0.0, 1.0);
   EXPECT_NEAR(reconstruction.Image(1).CamFromWorld().translation.z(), -5, 1e-6);
   EXPECT_NEAR(reconstruction.Image(2).CamFromWorld().translation.z(), 0, 1e-6);
   EXPECT_NEAR(reconstruction.Image(3).CamFromWorld().translation.z(), 5, 1e-6);
@@ -465,6 +504,19 @@ TEST(Reconstruction, UpdatePoint3DErrors) {
   reconstruction.Point3D(point3D_id).xyz = Eigen::Vector3d(0, 1, 1);
   reconstruction.UpdatePoint3DErrors();
   EXPECT_EQ(reconstruction.Point3D(point3D_id).error, 1);
+}
+
+TEST(Reconstruction, DeleteAllPoints2DAndPoints3D) {
+  Reconstruction reconstruction;
+  SyntheticDatasetOptions synthetic_dataset_options;
+  synthetic_dataset_options.num_cameras = 2;
+  synthetic_dataset_options.num_images = 20;
+  synthetic_dataset_options.num_points3D = 50;
+  synthetic_dataset_options.point2D_stddev = 0;
+  SynthesizeDataset(synthetic_dataset_options, &reconstruction);
+  reconstruction.DeleteAllPoints2DAndPoints3D();
+  EXPECT_EQ(reconstruction.NumPoints3D(), 0);
+  EXPECT_TRUE(CheckReconstruction(reconstruction));
 }
 
 }  // namespace
