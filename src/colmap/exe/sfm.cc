@@ -31,7 +31,7 @@
 
 #include "colmap/controllers/automatic_reconstruction.h"
 #include "colmap/controllers/bundle_adjustment.h"
-#include "colmap/controllers/hierarchical_mapper.h"
+#include "colmap/controllers/hierarchical_pipeline.h"
 #include "colmap/controllers/option_manager.h"
 #include "colmap/estimators/similarity_transform.h"
 #include "colmap/exe/gui.h"
@@ -84,8 +84,12 @@ int RunAutomaticReconstructor(int argc, char** argv) {
                            &reconstruction_options.camera_model);
   options.AddDefaultOption("single_camera",
                            &reconstruction_options.single_camera);
+  options.AddDefaultOption("single_camera_per_folder",
+                           &reconstruction_options.single_camera_per_folder);
   options.AddDefaultOption("camera_params",
                            &reconstruction_options.camera_params);
+  options.AddDefaultOption("extraction", &reconstruction_options.extraction);
+  options.AddDefaultOption("matching", &reconstruction_options.matching);
   options.AddDefaultOption("sparse", &reconstruction_options.sparse);
   options.AddDefaultOption("dense", &reconstruction_options.dense);
   options.AddDefaultOption("mesher", &mesher, "{poisson, delaunay}");
