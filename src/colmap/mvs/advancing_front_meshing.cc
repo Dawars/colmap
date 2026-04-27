@@ -90,8 +90,26 @@ using SurfaceMesh = CGAL::Surface_mesh<K::Point_3>;
 
 // AABB tree types for post-filtering.
 using AABBPrimitive = CGAL::AABB_face_graph_triangle_primitive<SurfaceMesh>;
-using AABBTraits = CGAL::AABB_traits_3<K, AABBPrimitive>;
-using AABBTree = CGAL::AABB_tree<AABBTraits>;
+
+#if defined(COLMAP_CGAL_ENABLED)
+
+  using CGALKernel = CGAL::Simple_cartesian<float>;
+  using CGALPoint = CGALKernel::Point_3;
+  using CGALTriangle = CGALKernel::Triangle_3;
+  using CGALSegment = CGALKernel::Segment_3;
+#if CGAL_VERSION_MAJOR >= 6
+  using CGALPrimitiveId =
+      CGAL::AABB_triangle_primitive_3<CGALKernel,
+                                      std::vector<CGALTriangle>::const_iterator>;
+  using CGALTraits = CGAL::AABB_traits_3<CGALKernel, CGALPrimitiveId>;
+#else
+  using CGALPrimitiveId =
+      CGAL::AABB_triangle_primitive<CGALKernel,
+                                    std::vector<CGALTriangle>::const_iterator>;
+  using CGALTraits = CGAL::AABB_traits<CGALKernel, CGALPrimitiveId>;
+#endif
+  using CGALAABBTree = CGAL::AABB_tree<CGALTraits>;
+
 
 // Visibility counter: maps triangulation facets to intersection counts.
 using VisibilityCounter =
@@ -271,8 +289,8 @@ colmap::PlyMesh SurfaceMeshToPlyMesh(const SurfaceMesh& mesh) {
       mesh.property_map<SurfaceMesh::Vertex_index, CGAL::Color>("v:color");
 
   ply_mesh.vertices.reserve(mesh.number_of_vertices());
-  if (vcolors.has_value()) {
-    const auto& colors = vcolors.value();
+  if (vcolors.second) {
+    const auto& colors = vcolors.first;
     for (const auto v : mesh.vertices()) {
       const auto& p = mesh.point(v);
       const auto& c = colors[v];
@@ -462,14 +480,14 @@ colmap::PlyMesh ReconstructBlock(
   if (!rays.empty() && options.visibility_post_filtering) {
     LOG(INFO) << "Post-filtering: casting " << rays.size()
               << " visibility rays through mesh...";
-    AABBTree tree(faces(mesh).first, faces(mesh).second, mesh);
+    CGALAABBTree tree(faces(mesh).first, faces(mesh).second, mesh);
     const int num_omp_threads = omp_get_max_threads();
     using FaceIndex = SurfaceMesh::Face_index;
     std::vector<std::unordered_map<FaceIndex, int>> thread_counters(
         num_omp_threads);
 #pragma omp parallel
     {
-      std::vector<AABBTree::Primitive_id> primitives;
+      std::vector<CGALAABBTree::Primitive_id> primitives;
       auto& local_counter = thread_counters[omp_get_thread_num()];
 #pragma omp for schedule(dynamic)
       for (size_t i = 0; i < rays.size(); ++i) {
