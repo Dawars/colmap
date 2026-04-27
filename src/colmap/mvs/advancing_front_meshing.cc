@@ -45,16 +45,28 @@
 #include <unordered_map>
 #include <vector>
 
+
+#if defined(COLMAP_CGAL_ENABLED)
 #include <CGAL/AABB_face_graph_triangle_primitive.h>
+#include <CGAL/version.h>
+#if CGAL_VERSION_MAJOR >= 5
+#include <CGAL/AABB_traits.h>
+#include <CGAL/AABB_triangle_primitive.h>
+#else
 #include <CGAL/AABB_traits_3.h>
+#include <CGAL/AABB_triangle_primitive_3.h>
+#endif
+
 #include <CGAL/AABB_tree.h>
+#include <CGAL/Simple_cartesian.h>
 #include <CGAL/Advancing_front_surface_reconstruction.h>
 #include <CGAL/Cartesian_converter.h>
 #include <CGAL/Filtered_kernel.h>
 #include <CGAL/Polygon_mesh_processing/repair.h>
-#include <CGAL/Simple_cartesian.h>
 #include <CGAL/Surface_mesh.h>
 #include <CGAL/boost/graph/Euler_operations.h>
+#endif  // COLMAP_CGAL_ENABLED
+
 #include <boost/functional/hash.hpp>
 #include <omp.h>
 
