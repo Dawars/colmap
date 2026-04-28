@@ -185,17 +185,32 @@ void BuildCameraModel(const std::optional<Rigid3d>& cam_from_world,
                                                    plane_color(3)));
 
     if (show_camera_up_arrow) {
+      const Eigen::Matrix3f world_from_cam_rot =
+          world_from_cam_mat.block<3, 3>(0, 0);
+
+      const Eigen::Vector3f right_dir = world_from_cam_rot.col(0);
+      const Eigen::Vector3f up_dir = -world_from_cam_rot.col(1);
+      const Eigen::Vector3f forward_dir = world_from_cam_rot.col(2);
+
       const Eigen::Vector3f plane_normal =
           (tr - tl).cross(bl - tl).normalized();
+
+      Eigen::Vector3f right =
+          right_dir - right_dir.dot(plane_normal) * plane_normal;
+      Eigen::Vector3f up = up_dir - up_dir.dot(plane_normal) * plane_normal;
+
+      right.normalize();
+      up.normalize();
+
       const float size = 0.08f * std::max(image_width, image_height);
 
-      // Forward offset to avoid z-fighting
+      // forward offset (avoid z-fighting)
       const float eps = 0.01f * image_extent;
       const Eigen::Vector3f offset = eps * plane_normal;
 
       const Eigen::Vector3f c0 = tl + offset;
-      const Eigen::Vector3f c1 = c0 + size * (tr - tl).normalized();
-      const Eigen::Vector3f c2 = c0 + size * (bl - tl).normalized();
+      const Eigen::Vector3f c1 = c0 + size * right;
+      const Eigen::Vector3f c2 = c0 + size * (-up);
 
       triangle_data->emplace_back(PointPainter::Data(c0(0),
                                                      c0(1),
@@ -214,6 +229,28 @@ void BuildCameraModel(const std::optional<Rigid3d>& cam_from_world,
                                   PointPainter::Data(c2(0),
                                                      c2(1),
                                                      c2(2),
+                                                     frame_color(0),
+                                                     frame_color(1),
+                                                     frame_color(2),
+                                                     frame_color(3)));
+
+      triangle_data->emplace_back(PointPainter::Data(c0(0),
+                                                     c0(1),
+                                                     c0(2),
+                                                     frame_color(0),
+                                                     frame_color(1),
+                                                     frame_color(2),
+                                                     frame_color(3)),
+                                  PointPainter::Data(c2(0),
+                                                     c2(1),
+                                                     c2(2),
+                                                     frame_color(0),
+                                                     frame_color(1),
+                                                     frame_color(2),
+                                                     frame_color(3)),
+                                  PointPainter::Data(c1(0),
+                                                     c1(1),
+                                                     c1(2),
                                                      frame_color(0),
                                                      frame_color(1),
                                                      frame_color(2),
@@ -277,7 +314,7 @@ void BuildCameraModel(const std::optional<Rigid3d>& cam_from_world,
       add_line(tip, head_right);
     }
   }
-}
+}  // namespace
 
 }  // namespace
 
