@@ -189,11 +189,11 @@ void BuildCameraModel(const std::optional<Rigid3d>& cam_from_world,
           world_from_cam_mat.block<3, 3>(0, 0);
 
       const Eigen::Vector3f right_dir = world_from_cam_rot.col(0);
-      const Eigen::Vector3f up_dir = -world_from_cam_rot.col(1);
+      const Eigen::Vector3f up_dir = world_from_cam_rot.col(1);
       const Eigen::Vector3f forward_dir = world_from_cam_rot.col(2);
 
       // Size + offset
-      const float size = 0.08f * image_extent;
+      const float size = 0.3f * image_extent;
       const float offset = 0.01f * image_extent;
 
       const Eigen::Vector3f c0 = tl + forward_dir * offset;
