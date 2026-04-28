@@ -192,25 +192,13 @@ void BuildCameraModel(const std::optional<Rigid3d>& cam_from_world,
       const Eigen::Vector3f up_dir = -world_from_cam_rot.col(1);
       const Eigen::Vector3f forward_dir = world_from_cam_rot.col(2);
 
-      const Eigen::Vector3f plane_normal =
-          (tr - tl).cross(bl - tl).normalized();
+      // Size + offset
+      const float size = 0.08f * image_extent;
+      const float offset = 0.01f * image_extent;
 
-      Eigen::Vector3f right =
-          right_dir - right_dir.dot(plane_normal) * plane_normal;
-      Eigen::Vector3f up = up_dir - up_dir.dot(plane_normal) * plane_normal;
-
-      right.normalize();
-      up.normalize();
-
-      const float size = 0.08f * std::max(image_width, image_height);
-
-      // forward offset (avoid z-fighting)
-      const float eps = 0.01f * image_extent;
-      const Eigen::Vector3f offset = eps * plane_normal;
-
-      const Eigen::Vector3f c0 = tl + offset;
-      const Eigen::Vector3f c1 = c0 + size * right;
-      const Eigen::Vector3f c2 = c0 + size * (-up);
+      const Eigen::Vector3f c0 = tl + forward_dir * offset;
+      const Eigen::Vector3f c1 = c0 + size * right_dir;
+      const Eigen::Vector3f c2 = c0 - size * up_dir;
 
       triangle_data->emplace_back(PointPainter::Data(c0(0),
                                                      c0(1),
