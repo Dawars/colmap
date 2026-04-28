@@ -185,14 +185,17 @@ void BuildCameraModel(const std::optional<Rigid3d>& cam_from_world,
                                                    plane_color(3)));
 
     if (show_camera_up_arrow) {
-      const float inset = 0.08f;  // how far from top-left corner
+      const Eigen::Vector3f plane_normal =
+          (tr - tl).cross(bl - tl).normalized();
+      const float size = 0.08f * std::max(image_width, image_height);
 
-      const Eigen::Vector3f right_step = inset * (tr - tl);
-      const Eigen::Vector3f down_step = inset * (bl - tl);
+      // Forward offset to avoid z-fighting
+      const float eps = 0.01f * image_extent;
+      const Eigen::Vector3f offset = eps * plane_normal;
 
-      const Eigen::Vector3f c0 = tl + right_step + down_step;
-      const Eigen::Vector3f c1 = c0 + 0.6f * right_step;
-      const Eigen::Vector3f c2 = c0 + 0.6f * down_step;
+      const Eigen::Vector3f c0 = tl + offset;
+      const Eigen::Vector3f c1 = c0 + size * (tr - tl).normalized();
+      const Eigen::Vector3f c2 = c0 + size * (bl - tl).normalized();
 
       triangle_data->emplace_back(PointPainter::Data(c0(0),
                                                      c0(1),
@@ -220,21 +223,20 @@ void BuildCameraModel(const std::optional<Rigid3d>& cam_from_world,
 
   const auto add_line = [&](const Eigen::Vector3f& p1,
                             const Eigen::Vector3f& p2) {
-    line_data->emplace_back(
-        PointPainter::Data(p1(0),
-                           p1(1),
-                           p1(2),
-                           frame_color(0),
-                           frame_color(1),
-                           frame_color(2),
-                           frame_color(3)),
-        PointPainter::Data(p2(0),
-                           p2(1),
-                           p2(2),
-                           frame_color(0),
-                           frame_color(1),
-                           frame_color(2),
-                           frame_color(3)));
+    line_data->emplace_back(PointPainter::Data(p1(0),
+                                               p1(1),
+                                               p1(2),
+                                               frame_color(0),
+                                               frame_color(1),
+                                               frame_color(2),
+                                               frame_color(3)),
+                            PointPainter::Data(p2(0),
+                                               p2(1),
+                                               p2(2),
+                                               frame_color(0),
+                                               frame_color(1),
+                                               frame_color(2),
+                                               frame_color(3)));
   };
   if (line_data != nullptr) {
     // Frame around image plane and connecting lines to projection center.
@@ -269,7 +271,6 @@ void BuildCameraModel(const std::optional<Rigid3d>& cam_from_world,
       const Eigen::Vector3f head_base = tip - up_dir * head_len;
       const Eigen::Vector3f head_left = head_base - right_dir * head_width;
       const Eigen::Vector3f head_right = head_base + right_dir * head_width;
-
 
       add_line(base, tip);
       add_line(tip, head_left);
