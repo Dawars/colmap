@@ -183,6 +183,39 @@ void BuildCameraModel(const std::optional<Rigid3d>& cam_from_world,
                                                    plane_color(1),
                                                    plane_color(2),
                                                    plane_color(3)));
+
+    if (show_camera_up_arrow) {
+      const float inset = 0.08f;  // how far from top-left corner
+
+      const Eigen::Vector3f right_step = inset * (tr - tl);
+      const Eigen::Vector3f down_step = inset * (bl - tl);
+
+      const Eigen::Vector3f c0 = tl + right_step + down_step;
+      const Eigen::Vector3f c1 = c0 + 0.6f * right_step;
+      const Eigen::Vector3f c2 = c0 + 0.6f * down_step;
+
+      triangle_data->emplace_back(PointPainter::Data(c0(0),
+                                                     c0(1),
+                                                     c0(2),
+                                                     frame_color(0),
+                                                     frame_color(1),
+                                                     frame_color(2),
+                                                     frame_color(3)),
+                                  PointPainter::Data(c1(0),
+                                                     c1(1),
+                                                     c1(2),
+                                                     frame_color(0),
+                                                     frame_color(1),
+                                                     frame_color(2),
+                                                     frame_color(3)),
+                                  PointPainter::Data(c2(0),
+                                                     c2(1),
+                                                     c2(2),
+                                                     frame_color(0),
+                                                     frame_color(1),
+                                                     frame_color(2),
+                                                     frame_color(3)));
+    }
   }
 
   const auto add_line = [&](const Eigen::Vector3f& p1,
