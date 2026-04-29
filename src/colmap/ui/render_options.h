@@ -54,8 +54,8 @@ struct RenderOptions {
   // reconstruction gets, the less frequently the scene is rendered.
   bool adapt_refresh_rate = true;
 
-  // Whether to show camera up arrows.
-  bool show_camera_up_arrow = false;
+  // Whether to show camera orientation (triangle in top-left corner).
+  bool show_camera_orientation = false;
 
   // Whether to visualize image connections.
   bool image_connections = false;

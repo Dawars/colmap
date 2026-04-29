@@ -91,7 +91,7 @@ void BuildCameraModel(const std::optional<Rigid3d>& cam_from_world,
                       const RGBAColor& frame_color,
                       const Eigen::Vector3d& model_origin,
                       const double model_scale,
-                      const bool show_camera_up_arrow,
+                      const bool show_camera_orientation,
                       std::vector<TrianglePainter::Data>* triangle_data,
                       std::vector<LinePainter::Data>* line_data) {
   // Updating the reconstruction in the viewer (e.g., deleting an image or a
@@ -155,7 +155,7 @@ void BuildCameraModel(const std::optional<Rigid3d>& cam_from_world,
     add_triangle(tl, tr, bl, plane_color);
     add_triangle(bl, tr, br, plane_color);
 
-    if (show_camera_up_arrow) {
+    if (show_camera_orientation) {
       const Eigen::Matrix3f world_from_cam_rot =
           world_from_cam_mat.block<3, 3>(0, 0);
 
@@ -1130,7 +1130,7 @@ void ModelViewerWidget::UploadImageData(const bool selection_mode) {
                      frame_color,
                      model_origin_,
                      model_scale_,
-                     options_->render->show_camera_up_arrow,
+                     options_->render->show_camera_orientation,
                      &triangle_data,
                      selection_mode ? nullptr : &line_data);
   }
@@ -1279,7 +1279,7 @@ void ModelViewerWidget::UploadMovieGrabberData() {
                        frame_color,
                        /*model_origin=*/Eigen::Vector3d::Zero(),
                        /*model_scale=*/1.,
-                       /*show_arrow=*/false,
+                       /*show_camera_orientation=*/false,
                        &triangle_data,
                        &line_data);
     }
