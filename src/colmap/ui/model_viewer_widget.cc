@@ -177,24 +177,24 @@ void BuildCameraModel(const std::optional<Rigid3d>& cam_from_world,
     }
   }
 
-  const auto add_line = [&](const Eigen::Vector3f& p1,
-                            const Eigen::Vector3f& p2) {
-    line_data->emplace_back(PointPainter::Data(p1(0),
-                                               p1(1),
-                                               p1(2),
-                                               frame_color(0),
-                                               frame_color(1),
-                                               frame_color(2),
-                                               frame_color(3)),
-                            PointPainter::Data(p2(0),
-                                               p2(1),
-                                               p2(2),
-                                               frame_color(0),
-                                               frame_color(1),
-                                               frame_color(2),
-                                               frame_color(3)));
-  };
   if (line_data != nullptr) {
+    const auto add_line = [&](const Eigen::Vector3f& p1,
+                              const Eigen::Vector3f& p2) {
+      line_data->emplace_back(PointPainter::Data(p1(0),
+                                                 p1(1),
+                                                 p1(2),
+                                                 frame_color(0),
+                                                 frame_color(1),
+                                                 frame_color(2),
+                                                 frame_color(3)),
+                              PointPainter::Data(p2(0),
+                                                 p2(1),
+                                                 p2(2),
+                                                 frame_color(0),
+                                                 frame_color(1),
+                                                 frame_color(2),
+                                                 frame_color(3)));
+    };
     // Frame around image plane and connecting lines to projection center.
 
     add_line(pc, tl);
@@ -206,32 +206,6 @@ void BuildCameraModel(const std::optional<Rigid3d>& cam_from_world,
     add_line(tr, br);
     add_line(br, bl);
     add_line(bl, tl);
-
-    if (show_camera_up_arrow) {
-      const Eigen::Matrix3f world_from_cam_rot =
-          world_from_cam_mat.block<3, 3>(0, 0);
-      const Eigen::Vector3f right_dir = world_from_cam_rot.col(0);
-      const Eigen::Vector3f up_dir = -world_from_cam_rot.col(1);
-      const Eigen::Vector3f forward_dir = world_from_cam_rot.col(2);
-
-      const float arrow_len = 0.3f * image_extent;
-      const float head_len = 0.35f * arrow_len;
-      const float head_width = 0.25f * arrow_len;
-      const float offset = 0.01f * image_extent;
-
-      const Eigen::Vector3f center = 0.25f * (tl + tr + br + bl);
-
-      const Eigen::Vector3f arrow_center = center + forward_dir * offset;
-      const Eigen::Vector3f tip = arrow_center + up_dir * (0.5f * arrow_len);
-      const Eigen::Vector3f base = arrow_center - up_dir * (0.5f * arrow_len);
-      const Eigen::Vector3f head_base = tip - up_dir * head_len;
-      const Eigen::Vector3f head_left = head_base - right_dir * head_width;
-      const Eigen::Vector3f head_right = head_base + right_dir * head_width;
-
-      add_line(base, tip);
-      add_line(tip, head_left);
-      add_line(tip, head_right);
-    }
   }
 }  // namespace
 
