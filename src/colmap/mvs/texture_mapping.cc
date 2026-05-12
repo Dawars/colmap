@@ -269,9 +269,80 @@ struct OcclusionTester {
 
 #endif  // COLMAP_CGAL_ENABLED
 
+// Returns (u, v, w) where P = u*A + v*B + w*C.
+Eigen::Vector3f Barycentric(const Eigen::Vector2f& P,
+                            const Eigen::Vector2f& A,
+                            const Eigen::Vector2f& B,
+                            const Eigen::Vector2f& C) {
+  const Eigen::Vector2f v0 = B - A;
+  const Eigen::Vector2f v1 = C - A;
+  const Eigen::Vector2f v2 = P - A;
+  const float d00 = v0.dot(v0);
+  const float d01 = v0.dot(v1);
+  const float d11 = v1.dot(v1);
+  const float d20 = v2.dot(v0);
+  const float d21 = v2.dot(v1);
+  const float denom = d00 * d11 - d01 * d01;
+  if (std::abs(denom) < 1e-10f) {
+    return Eigen::Vector3f(-1, -1, -1);
+  }
+  const float v = (d11 * d20 - d01 * d21) / denom;
+  const float w = (d00 * d21 - d01 * d20) / denom;
+  const float u = 1.0f - v - w;
+  return Eigen::Vector3f(u, v, w);
+}
+
+bool IsTriangleMasked(std::array<Eigen::Vector2f, 3> proj_verts,
+                      const Bitmap& mask) {
+  if (mask.IsEmpty()) {
+    return false;
+  }
+  // Checks if any pixel in triangle is masked
+  const int w = mask.Width();
+  const int h = mask.Height();
+  // Bounding box
+  const int min_px = std::max(
+      0,
+      static_cast<int>(std::floor(std::min(
+          {proj_verts[0].x(), proj_verts[1].x(), proj_verts[2].x()}))) -
+          1);
+  const int min_py = std::max(
+      0,
+      static_cast<int>(std::floor(std::min(
+          {proj_verts[0].y(), proj_verts[1].y(), proj_verts[2].y()}))) -
+          1);
+  const int max_px = std::min(
+      w - 1,
+      static_cast<int>(std::ceil(std::max(
+          {proj_verts[0].x(), proj_verts[1].x(), proj_verts[2].x()}))) +
+          1);
+  const int max_py = std::min(
+      h - 1,
+      static_cast<int>(std::ceil(std::max(
+          {proj_verts[0].y(), proj_verts[1].y(), proj_verts[2].y()}))) +
+          1);
+  for (int py = min_py; py <= max_py; ++py) {
+    for (int px = min_px; px <= max_px; ++px) {
+      const Eigen::Vector2f pixel_center(px + 0.5f, py + 0.5f);
+      const Eigen::Vector3f bary = Barycentric(
+          pixel_center, proj_verts[0], proj_verts[1], proj_verts[2]);
+
+      const float min_bary = std::min({bary.x(), bary.y(), bary.z()});
+      if (min_bary < -1e-4f) continue;  // outside of triangle
+      auto mask_value = mask.GetPixel(px, py).value_or(BitmapColor<uint8_t>(0));
+      ;
+      if (mask_value.r == 0) {  // check 0 or 255 in r channel
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 std::vector<int> SelectViews(const PlyMesh& mesh,
                              const std::vector<Eigen::Vector3f>& face_normals,
                              const std::vector<Image>& images,
+                             const std::vector<Bitmap>& masks,
                              const FaceAdjacencyMap& adjacency,
                              const MeshTextureMappingOptions& options) {
   const size_t num_faces = mesh.faces.size();
@@ -337,6 +408,11 @@ std::vector<int> SelectViews(const PlyMesh& mesh,
       }
       if (behind_camera) continue;
       if (visible_count < options.min_visible_vertices) continue;
+
+      const Bitmap& mask = masks[ii];
+      if (IsTriangleMasked(proj, mask)) {
+        continue;
+      }
 
 #if defined(COLMAP_CGAL_ENABLED)
       bool occluded = false;
@@ -625,29 +701,6 @@ std::vector<float> ComputeFaceUVs(
   }
 
   return uvs;
-}
-
-// Returns (u, v, w) where P = u*A + v*B + w*C.
-Eigen::Vector3f Barycentric(const Eigen::Vector2f& P,
-                            const Eigen::Vector2f& A,
-                            const Eigen::Vector2f& B,
-                            const Eigen::Vector2f& C) {
-  const Eigen::Vector2f v0 = B - A;
-  const Eigen::Vector2f v1 = C - A;
-  const Eigen::Vector2f v2 = P - A;
-  const float d00 = v0.dot(v0);
-  const float d01 = v0.dot(v1);
-  const float d11 = v1.dot(v1);
-  const float d20 = v2.dot(v0);
-  const float d21 = v2.dot(v1);
-  const float denom = d00 * d11 - d01 * d01;
-  if (std::abs(denom) < 1e-10f) {
-    return Eigen::Vector3f(-1, -1, -1);
-  }
-  const float v = (d11 * d20 - d01 * d21) / denom;
-  const float w = (d00 * d21 - d01 * d20) / denom;
-  const float u = 1.0f - v - w;
-  return Eigen::Vector3f(u, v, w);
 }
 
 // Compute atlas-space vertex positions for a face within a region.
@@ -1064,6 +1117,7 @@ void MeshTextureMappingOptions::Print() const {
 MeshTextureMappingResult MeshTextureMapping(
     const PlyMesh& mesh,
     const std::vector<Image>& images,
+    const std::vector<Bitmap>& masks,
     const MeshTextureMappingOptions& options) {
   THROW_CHECK(options.Check());
 
@@ -1090,7 +1144,7 @@ MeshTextureMappingResult MeshTextureMapping(
   LOG(INFO) << "Selecting views for " << mesh.faces.size() << " faces from "
             << images.size() << " images...";
   const std::vector<int> view_per_face =
-      SelectViews(mesh, face_normals, images, adjacency, options);
+      SelectViews(mesh, face_normals, images, masks, adjacency, options);
   result.face_view_ids = view_per_face;
 
   const size_t num_assigned = std::count_if(view_per_face.begin(),

@@ -148,8 +148,12 @@ int RunMeshTexturer(int argc, char** argv) {
   mvs::Model model;
   model.ReadFromCOLMAP(workspace_path);
 
+  std::vector<Bitmap> masks(model.images.size(), Bitmap{});
+  auto mask_dir = workspace_path / "masks";
+
   LOG(INFO) << "Loading " << model.images.size() << " images...";
-  for (auto& image : model.images) {
+  for (size_t i = 0; i < model.images.size(); i++) {
+    auto& image = model.images[i];
     Bitmap bitmap;
     THROW_CHECK(bitmap.Read(image.GetPath(), /*as_rgb=*/true))
         << "Failed to read image: " << image.GetPath();
@@ -159,7 +163,20 @@ int RunMeshTexturer(int argc, char** argv) {
                      static_cast<int>(image.GetHeight()));
     }
     image.SetBitmap(bitmap);
-  }
+    auto mask_path = mask_dir / std::filesystem::relative(
+                                    image.GetPath(), workspace_path / "images");
+    bool exists_mask = true;
+    if (!ExistsFile(mask_path.replace_extension(".png"))) {
+      exists_mask = false;
+      // Try appending extension with .png
+      auto alt_mask_path = mask_path.string() + ".png";
+      if (ExistsFile(alt_mask_path)) {
+        mask_path = std::move(alt_mask_path);
+        exists_mask = true;
+      }
+    } else {
+      mask_path = mask_path.replace_extension(".png");
+    }
 
   LOG(INFO) << "Reading input mesh from " << input_path << "...";
   const PlyMesh mesh = ReadPlyMesh(input_path).mesh;
