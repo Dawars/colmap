@@ -207,6 +207,11 @@ int RunMeshTexturer(int argc, char** argv) {
       mask_path = mask_path.replace_extension(".png");
     }
 
+    if (exists_mask) {
+      LOG(INFO) << "Reading mask from " << mask_path;
+      THROW_CHECK(masks[i].Read(mask_path, /*as_rgb=*/false));
+    }
+  }
   LOG(INFO) << "Reading input mesh from " << input_path << "...";
   const PlyMesh mesh = ReadPlyMesh(input_path).mesh;
   LOG(INFO) << "Mesh has " << mesh.vertices.size() << " vertices and "
@@ -216,7 +221,7 @@ int RunMeshTexturer(int argc, char** argv) {
 
   LOG(INFO) << "Running surface texture mapping...";
   const mvs::MeshTextureMappingResult result = mvs::MeshTextureMapping(
-      mesh, model.images, *options.mesh_texture_mapping);
+      mesh, model.images, masks, *options.mesh_texture_mapping);
 
   CreateDirIfNotExists(output_path);
 
