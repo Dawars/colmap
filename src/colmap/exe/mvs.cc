@@ -178,9 +178,6 @@ int RunMeshTexturer(int argc, char** argv) {
   model.ReadFromCOLMAP(workspace_path);
 
   LOG(INFO) << "Loading " << model.images.size() << " images...";
-  for (auto& image : model.images) {
-    image.LoadBitmap();
-  }
 
   LOG(INFO) << "Reading input mesh from " << input_path << "...";
   const PlyMesh mesh = ReadPlyMesh(input_path).mesh;
