@@ -32,8 +32,6 @@
 #include "colmap/util/eigen_alignment.h"
 #include "colmap/util/logging.h"
 
-#include <utility>
-
 #include <Eigen/Core>
 #include <Eigen/Dense>
 
@@ -61,6 +59,20 @@ void Image::SetBitmap(Bitmap bitmap) {
   THROW_CHECK_EQ(height_, bitmap.Height());
   bitmap_ = std::move(bitmap);
 }
+
+void Image::LoadBitmap() {
+  if (!bitmap_.IsEmpty()) return;  // Already loaded.
+  Bitmap bitmap;
+  THROW_CHECK(bitmap.Read(path_, /*as_rgb=*/true))
+      << "Failed to read image: " << path_;
+  if (bitmap.Width() != static_cast<int>(width_) ||
+      bitmap.Height() != static_cast<int>(height_)) {
+    bitmap.Rescale(static_cast<int>(width_), static_cast<int>(height_));
+  }
+  bitmap_ = std::move(bitmap);
+}
+
+void Image::UnloadBitmap() { bitmap_ = Bitmap(); }
 
 void Image::Rescale(const float factor) { Rescale(factor, factor); }
 

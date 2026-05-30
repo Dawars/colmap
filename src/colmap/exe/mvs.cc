@@ -179,15 +179,7 @@ int RunMeshTexturer(int argc, char** argv) {
 
   LOG(INFO) << "Loading " << model.images.size() << " images...";
   for (auto& image : model.images) {
-    Bitmap bitmap;
-    THROW_CHECK(bitmap.Read(image.GetPath(), /*as_rgb=*/true))
-        << "Failed to read image: " << image.GetPath();
-    if (bitmap.Width() != static_cast<int>(image.GetWidth()) ||
-        bitmap.Height() != static_cast<int>(image.GetHeight())) {
-      bitmap.Rescale(static_cast<int>(image.GetWidth()),
-                     static_cast<int>(image.GetHeight()));
-    }
-    image.SetBitmap(std::move(bitmap));
+    image.LoadBitmap();
   }
 
   LOG(INFO) << "Reading input mesh from " << input_path << "...";

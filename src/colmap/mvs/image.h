@@ -52,6 +52,15 @@ class Image {
   void SetBitmap(Bitmap bitmap);
   inline const Bitmap& GetBitmap() const;
 
+  // Load the bitmap from disk (using the stored path). No-op if already loaded.
+  void LoadBitmap();
+
+  // Release the bitmap memory. Safe to call multiple times.
+  void UnloadBitmap();
+
+  // Check if bitmap is currently loaded in memory.
+  inline bool IsBitmapLoaded() const;
+
   inline const std::filesystem::path& GetPath() const;
   inline const float* GetR() const;
   inline const float* GetT() const;
@@ -106,6 +115,8 @@ size_t Image::GetWidth() const { return width_; }
 size_t Image::GetHeight() const { return height_; }
 
 const Bitmap& Image::GetBitmap() const { return bitmap_; }
+
+bool Image::IsBitmapLoaded() const { return !bitmap_.IsEmpty(); }
 
 const std::filesystem::path& Image::GetPath() const { return path_; }
 
