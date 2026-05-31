@@ -269,9 +269,136 @@ struct OcclusionTester {
 
 #endif  // COLMAP_CGAL_ENABLED
 
+  // Returns (u, v, w) where P = u*A + v*B + w*C.
+Eigen::Vector3f Barycentric(const Eigen::Vector2f& P,
+                            const Eigen::Vector2f& A,
+                            const Eigen::Vector2f& B,
+                            const Eigen::Vector2f& C) {
+  const Eigen::Vector2f v0 = B - A;
+  const Eigen::Vector2f v1 = C - A;
+  const Eigen::Vector2f v2 = P - A;
+  const float d00 = v0.dot(v0);
+  const float d01 = v0.dot(v1);
+  const float d11 = v1.dot(v1);
+  const float d20 = v2.dot(v0);
+  const float d21 = v2.dot(v1);
+  const float denom = d00 * d11 - d01 * d01;
+  if (std::abs(denom) < 1e-10f) {
+    return Eigen::Vector3f(-1, -1, -1);
+  }
+  const float v = (d11 * d20 - d01 * d21) / denom;
+  const float w = (d00 * d21 - d01 * d20) / denom;
+  const float u = 1.0f - v - w;
+  return Eigen::Vector3f(u, v, w);
+}
+// Compute gradient magnitude image from a bitmap using the specified operator.
+// Returns a flat buffer of size width×height with gradient magnitudes in [0,∞).
+std::vector<float> ComputeGradientMagnitude(
+    const Bitmap& bitmap, const TextureGradientOperator gradient_op) {
+  const int w = bitmap.Width();
+  const int h = bitmap.Height();
+
+  // Convert to grayscale (luminance).
+  std::vector<float> gray(static_cast<size_t>(w) * h);
+  for (int y = 0; y < h; ++y) {
+    for (int x = 0; x < w; ++x) {
+      const auto color =
+          bitmap.GetPixel(x, y).value_or(BitmapColor<uint8_t>(0));
+      gray[static_cast<size_t>(y) * w + x] =
+          0.2126f * color.r + 0.7152f * color.g + 0.0722f * color.b;
+    }
+  }
+
+  // Kernel weights for horizontal/vertical derivatives.
+  // Sobel:  [-1 0 1; -2 0 2; -1 0 1]
+  // Scharr: [-3 0 3; -10 0 10; -3 0 3]  (better rotational symmetry)
+  float k1, k2;
+  if (gradient_op == TextureGradientOperator::SCHARR) {
+    k1 = 3.0f;
+    k2 = 10.0f;
+  } else {
+    k1 = 1.0f;
+    k2 = 2.0f;
+  }
+
+  std::vector<float> gradient(static_cast<size_t>(w) * h, 0.0f);
+  for (int y = 1; y < h - 1; ++y) {
+    for (int x = 1; x < w - 1; ++x) {
+      const float tl = gray[static_cast<size_t>(y - 1) * w + (x - 1)];
+      const float tc = gray[static_cast<size_t>(y - 1) * w + x];
+      const float tr = gray[static_cast<size_t>(y - 1) * w + (x + 1)];
+      const float ml = gray[static_cast<size_t>(y) * w + (x - 1)];
+      const float mr = gray[static_cast<size_t>(y) * w + (x + 1)];
+      const float bl = gray[static_cast<size_t>(y + 1) * w + (x - 1)];
+      const float bc = gray[static_cast<size_t>(y + 1) * w + x];
+      const float br = gray[static_cast<size_t>(y + 1) * w + (x + 1)];
+
+      const float gx = -k1 * tl + k1 * tr - k2 * ml + k2 * mr - k1 * bl +
+                        k1 * br;
+      const float gy = -k1 * tl - k2 * tc - k1 * tr + k1 * bl + k2 * bc +
+                        k1 * br;
+      gradient[static_cast<size_t>(y) * w + x] = std::sqrt(gx * gx + gy * gy);
+    }
+  }
+  return gradient;
+}
+
+// Sample the mean gradient magnitude within a projected triangle.
+// proj contains the 2D pixel coordinates of the triangle vertices.
+// Returns the mean gradient value over sampled pixels, or 0 if no samples.
+double SampleTriangleGradient(const std::vector<float>& gradient,
+                              const int img_width,
+                              const int img_height,
+                              const std::array<Eigen::Vector2f, 3>& proj) {
+  // Compute bounding box of the projected triangle.
+  const int min_x = std::max(
+      0, static_cast<int>(
+             std::floor(std::min({proj[0].x(), proj[1].x(), proj[2].x()}))));
+  const int min_y = std::max(
+      0, static_cast<int>(
+             std::floor(std::min({proj[0].y(), proj[1].y(), proj[2].y()}))));
+  const int max_x = std::min(
+      img_width - 1,
+      static_cast<int>(
+          std::ceil(std::max({proj[0].x(), proj[1].x(), proj[2].x()}))));
+  const int max_y = std::min(
+      img_height - 1,
+      static_cast<int>(
+          std::ceil(std::max({proj[0].y(), proj[1].y(), proj[2].y()}))));
+
+  double sum_gradient = 0.0;
+  int num_samples = 0;
+
+  for (int y = min_y; y <= max_y; ++y) {
+    for (int x = min_x; x <= max_x; ++x) {
+      const Eigen::Vector2f pixel(x + 0.5f, y + 0.5f);
+      const Eigen::Vector3f bary =
+          Barycentric(pixel, proj[0], proj[1], proj[2]);
+      if (bary.x() < -1e-4f || bary.y() < -1e-4f || bary.z() < -1e-4f) {
+        continue;
+      }
+      sum_gradient += gradient[static_cast<size_t>(y) * img_width + x];
+      ++num_samples;
+    }
+  }
+
+  if (num_samples == 0) {
+    // Fall back to sampling at the three vertices.
+    for (int vi = 0; vi < 3; ++vi) {
+      const int px = std::clamp(static_cast<int>(proj[vi].x()), 0, img_width - 1);
+      const int py =
+          std::clamp(static_cast<int>(proj[vi].y()), 0, img_height - 1);
+      sum_gradient += gradient[static_cast<size_t>(py) * img_width + px];
+    }
+    num_samples = 3;
+  }
+
+  return sum_gradient / num_samples;
+}
+
 std::vector<int> SelectViews(const PlyMesh& mesh,
                              const std::vector<Eigen::Vector3f>& face_normals,
-                             const std::vector<Image>& images,
+                             std::vector<Image>& images,
                              const FaceAdjacencyMap& adjacency,
                              const MeshTextureMappingOptions& options) {
   const size_t num_faces = mesh.faces.size();
@@ -286,34 +413,56 @@ std::vector<int> SelectViews(const PlyMesh& mesh,
   occlusion_tester.Build(mesh);
 #endif
 
+  const bool use_gmi = (options.data_term == TextureDataTerm::GMI);
+
   // Flat score buffer: scores[fi * num_images + ii].
   std::vector<double> scores(num_faces * num_images, -1.0);
 
-#ifdef _OPENMP
-  [[maybe_unused]] const int num_threads =
-      options.num_threads > 0
-          ? options.num_threads
-          : std::max(1, static_cast<int>(omp_get_max_threads()));
-#pragma omp parallel for schedule(dynamic) num_threads(num_threads)
-#endif
-  for (int64_t fi = 0; fi < static_cast<int64_t>(num_faces); ++fi) {
+  // Precompute per-face data that doesn't depend on the image.
+  struct FaceData {
+    Eigen::Vector3f normal;
+    std::array<size_t, 3> idx;
+    std::array<Eigen::Vector3f, 3> verts;
+    Eigen::Vector3f centroid;
+    bool valid = false;
+  };
+  std::vector<FaceData> face_data(num_faces);
+  for (size_t fi = 0; fi < num_faces; ++fi) {
     const Eigen::Vector3f& normal = face_normals[fi];
     if (normal.squaredNorm() < 1e-10f) continue;
+    FaceData& fd = face_data[fi];
+    fd.normal = normal;
+    fd.idx = GetFaceIndices(mesh.faces[fi]);
+    fd.verts[0] = GetVertex(mesh, fd.idx[0]);
+    fd.verts[1] = GetVertex(mesh, fd.idx[1]);
+    fd.verts[2] = GetVertex(mesh, fd.idx[2]);
+    fd.centroid = (fd.verts[0] + fd.verts[1] + fd.verts[2]) / 3.0f;
+    fd.valid = true;
+  }
 
-    const std::array<size_t, 3> idx = GetFaceIndices(mesh.faces[fi]);
-    const Eigen::Vector3f v0 = GetVertex(mesh, idx[0]);
-    const Eigen::Vector3f v1 = GetVertex(mesh, idx[1]);
-    const Eigen::Vector3f v2 = GetVertex(mesh, idx[2]);
-    const Eigen::Vector3f centroid = (v0 + v1 + v2) / 3.0f;
-    const std::array<Eigen::Vector3f, 3> verts = {v0, v1, v2};
+  // Process one image at a time. For GMI mode, we load the image, compute
+  // the gradient magnitude, score all faces, then unload.
+  for (size_t ii = 0; ii < num_images; ++ii) {
+    Image& img = images[ii];
 
-    for (size_t ii = 0; ii < num_images; ++ii) {
-      const Image& img = images[ii];
-      const Eigen::Vector3f cam_center =
-          ComputeCameraCenter(img.GetR(), img.GetT());
+    std::vector<float> gradient;
+    if (use_gmi) {
+      img.LoadBitmap();
+      gradient = ComputeGradientMagnitude(img.GetBitmap(),
+                                          options.gradient_operator);
+    }
 
-      const Eigen::Vector3f view_dir = (cam_center - centroid).normalized();
-      const float cos_angle = normal.dot(view_dir);
+    const Eigen::Vector3f cam_center =
+        ComputeCameraCenter(img.GetR(), img.GetT());
+    const int img_w = static_cast<int>(img.GetWidth());
+    const int img_h = static_cast<int>(img.GetHeight());
+
+    for (size_t fi = 0; fi < num_faces; ++fi) {
+      const FaceData& fd = face_data[fi];
+      if (!fd.valid) continue;
+
+      const Eigen::Vector3f view_dir = (cam_center - fd.centroid).normalized();
+      const float cos_angle = fd.normal.dot(view_dir);
       if (cos_angle < static_cast<float>(options.min_cos_normal_angle)) {
         continue;
       }
@@ -322,12 +471,12 @@ std::vector<int> SelectViews(const PlyMesh& mesh,
       std::array<Eigen::Vector2f, 3> proj;
       bool behind_camera = false;
       for (int vi = 0; vi < 3; ++vi) {
-        const float depth = ProjectPointDepth(img.GetP(), verts[vi]);
+        const float depth = ProjectPointDepth(img.GetP(), fd.verts[vi]);
         if (depth <= 0) {
           behind_camera = true;
           break;
         }
-        proj[vi] = ProjectPoint(img.GetP(), verts[vi]);
+        proj[vi] = ProjectPoint(img.GetP(), fd.verts[vi]);
         if (proj[vi].x() >= 0 &&
             proj[vi].x() < static_cast<float>(img.GetWidth()) &&
             proj[vi].y() >= 0 &&
@@ -341,7 +490,7 @@ std::vector<int> SelectViews(const PlyMesh& mesh,
 #if defined(COLMAP_CGAL_ENABLED)
       bool occluded = false;
       for (int vi = 0; vi < 3; ++vi) {
-        if (occlusion_tester.IsOccluded(cam_center, verts[vi], fi)) {
+        if (occlusion_tester.IsOccluded(cam_center, fd.verts[vi], fi)) {
           occluded = true;
           break;
         }
@@ -354,7 +503,18 @@ std::vector<int> SelectViews(const PlyMesh& mesh,
       const double area =
           std::abs(static_cast<double>(e1.x()) * static_cast<double>(e2.y()) -
                    static_cast<double>(e1.y()) * static_cast<double>(e2.x()));
-      scores[fi * num_images + ii] = area;
+
+      if (use_gmi) {
+        const double mean_gm =
+            SampleTriangleGradient(gradient, img_w, img_h, proj);
+        scores[fi * num_images + ii] = mean_gm * area;
+      } else {
+        scores[fi * num_images + ii] = area;
+      }
+    }
+
+    if (use_gmi) {
+      img.UnloadBitmap();
     }
   }
 
@@ -627,28 +787,6 @@ std::vector<float> ComputeFaceUVs(
   return uvs;
 }
 
-// Returns (u, v, w) where P = u*A + v*B + w*C.
-Eigen::Vector3f Barycentric(const Eigen::Vector2f& P,
-                            const Eigen::Vector2f& A,
-                            const Eigen::Vector2f& B,
-                            const Eigen::Vector2f& C) {
-  const Eigen::Vector2f v0 = B - A;
-  const Eigen::Vector2f v1 = C - A;
-  const Eigen::Vector2f v2 = P - A;
-  const float d00 = v0.dot(v0);
-  const float d01 = v0.dot(v1);
-  const float d11 = v1.dot(v1);
-  const float d20 = v2.dot(v0);
-  const float d21 = v2.dot(v1);
-  const float denom = d00 * d11 - d01 * d01;
-  if (std::abs(denom) < 1e-10f) {
-    return Eigen::Vector3f(-1, -1, -1);
-  }
-  const float v = (d11 * d20 - d01 * d21) / denom;
-  const float w = (d00 * d21 - d01 * d20) / denom;
-  const float u = 1.0f - v - w;
-  return Eigen::Vector3f(u, v, w);
-}
 
 // Compute atlas-space vertex positions for a face within a region.
 std::array<Eigen::Vector2f, 3> ComputeAtlasVerts(const RegionProjection& rp,
@@ -1127,6 +1265,8 @@ void MeshTextureMappingOptions::Print() const {
   PrintOption(color_correction_regularization);
   PrintOption(num_threads);
   PrintOption(texture_scale_factor);
+  PrintOption(static_cast<int>(data_term));
+  PrintOption(static_cast<int>(gradient_operator));
 }
 
 #undef PrintOption

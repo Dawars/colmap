@@ -38,6 +38,24 @@
 namespace colmap {
 namespace mvs {
 
+// Data term for view quality scoring during texture mapping.
+enum class TextureDataTerm {
+  // Score = projected face area in pixels. Prefers views where the face
+  // appears large (i.e., close to the camera).
+  AREA = 0,
+  // Score = mean gradient magnitude × projected area. Prefers views where
+  // the face appears both large AND sharp/in-focus (Gradient Magnitude Image).
+  GMI = 1,
+};
+
+// Gradient operator used for computing the gradient magnitude image.
+enum class TextureGradientOperator {
+  // Sobel 3×3 operator (standard, slightly less rotational invariance).
+  SOBEL = 0,
+  // Scharr 3×3 operator (better rotational symmetry than Sobel).
+  SCHARR = 1,
+};
+
 struct MeshTextureMappingOptions {
   // Minimum cosine of angle between face normal and view direction.
   // Faces viewed at more grazing angles are rejected.
@@ -71,6 +89,15 @@ struct MeshTextureMappingOptions {
   // < 1.0 = lower resolution (e.g. 0.5 = half).
   // > 1.0 = higher resolution (e.g. 2.0 = double).
   double texture_scale_factor = 1.0;
+
+  // Data term for view quality scoring.
+  // AREA: uses projected face area only (fast, no image loading needed).
+  // GMI: uses gradient magnitude × area (sharper views preferred, requires
+  //      loading images during view selection).
+  TextureDataTerm data_term = TextureDataTerm::GMI;
+
+  // Gradient operator for GMI computation. Only used when data_term == GMI.
+  TextureGradientOperator gradient_operator = TextureGradientOperator::SOBEL;
 
   bool Check() const;
   void Print() const;
