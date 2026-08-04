@@ -107,7 +107,6 @@ namespace colmap {
 namespace {
 
 TEST(DefaultBundleAdjuster, Nominal) {
-  SetPRNGSeed(0);
   Reconstruction gt_reconstruction;
   SyntheticDatasetOptions synthetic_dataset_options;
   synthetic_dataset_options.num_rigs = 1;
@@ -210,7 +209,6 @@ TEST(DefaultBundleAdjuster, EquirectangularMatchesCeres) {
 }
 
 TEST(DefaultBundleAdjuster, RigThrowsErrorOnVariableSensorFromRig) {
-  SetPRNGSeed(0);
   Reconstruction reconstruction;
   SyntheticDatasetOptions synthetic_dataset_options;
   synthetic_dataset_options.num_rigs = 1;
@@ -233,7 +231,6 @@ TEST(DefaultBundleAdjuster, NominalMultiCameraRigConstantSensorFromRig) {
   // Exercises the sensor_from_rig code path: 2 cameras per rig, one of which
   // has a non-identity sensor_from_rig. Verifies that Caspar converges to the
   // ground truth when sensor_from_rig is held constant.
-  SetPRNGSeed(0);
   Reconstruction gt_reconstruction;
   SyntheticDatasetOptions synthetic_dataset_options;
   synthetic_dataset_options.num_rigs = 1;
@@ -277,7 +274,6 @@ TEST(DefaultBundleAdjuster, MultiCameraRigLargeConstantSensorFromRig) {
   // sensor_from_rig offsets — typically 20–90 degrees and 0.1–1 m baseline.
   // This test uses a 30-degree Z-rotation and 0.3 m translation to exercise
   // the non-identity sensor_from_rig path with realistic values.
-  SetPRNGSeed(0);
   Reconstruction gt_reconstruction;
   SyntheticDatasetOptions synthetic_dataset_options;
   synthetic_dataset_options.num_rigs = 1;
@@ -656,7 +652,6 @@ TEST(DefaultBundleAdjuster, VariablePrincipalPoint) {
 }
 
 TEST(DefaultBundleAdjuster, MergedCalibConvergence) {
-  SetPRNGSeed(0);
   Reconstruction gt_reconstruction;
   SyntheticDatasetOptions synthetic_dataset_options;
   synthetic_dataset_options.num_rigs = 1;
@@ -953,7 +948,6 @@ TEST(DefaultBundleAdjuster, MultipleExternalImagesAreInvariant) {
 }
 
 TEST(DefaultBundleAdjuster, MergedCalibMatchesCeres) {
-  SetPRNGSeed(0);
   Reconstruction reconstruction;
   SyntheticDatasetOptions synthetic_dataset_options;
   synthetic_dataset_options.num_rigs = 1;
@@ -1026,7 +1020,6 @@ bool PoseExactlyUnchanged(const Image& a, const Image& b) {
 }
 
 TEST(DefaultBundleAdjuster, GaugeFixingWithOneFrameFromWorld) {
-  SetPRNGSeed(0);
   Reconstruction reconstruction;
   SyntheticDatasetOptions opts;
   opts.num_rigs = 2;
@@ -1064,7 +1057,6 @@ TEST(DefaultBundleAdjuster, GaugeFixingWithOneFrameFromWorld) {
 
 TEST(DefaultBundleAdjuster,
      GaugeFixingWithOneFrameFromWorld_SkipsWhenAlreadyFixed) {
-  SetPRNGSeed(0);
   Reconstruction reconstruction;
   SyntheticDatasetOptions opts;
   opts.num_rigs = 2;
@@ -1102,7 +1094,6 @@ TEST(DefaultBundleAdjuster,
 }
 
 TEST(DefaultBundleAdjuster, GaugeFixingWithThreePoints_PinsExactlyThreePoints) {
-  SetPRNGSeed(0);
   Reconstruction reconstruction;
   SyntheticDatasetOptions opts;
   opts.num_rigs = 2;
@@ -1143,7 +1134,6 @@ TEST(DefaultBundleAdjuster, GaugeFixingWithThreePoints_PinsExactlyThreePoints) {
 
 TEST(DefaultBundleAdjuster,
      GaugeFixingWithThreePoints_CountsExistingConstantPoints) {
-  SetPRNGSeed(0);
   Reconstruction reconstruction;
   SyntheticDatasetOptions opts;
   opts.num_rigs = 2;
@@ -1187,7 +1177,6 @@ TEST(DefaultBundleAdjuster, MultiCameraRigResidualCountConstantSensorFromRig) {
   // All sensor observations (ref and non-ref) must contribute residuals.
   // The old code skipped non-ref sensor observations when the pose was
   // variable, which would halve the residual count for a 2-camera rig.
-  SetPRNGSeed(0);
   Reconstruction reconstruction;
   SyntheticDatasetOptions synthetic_dataset_options;
   synthetic_dataset_options.num_rigs = 1;
@@ -1223,7 +1212,6 @@ TEST(DefaultBundleAdjuster, MultiCameraRigConstantRigPoseHoldsAllSensors) {
   // must have invariant cam_from_world. Sensors in the variable frame must
   // change. This differs from the Ceres behaviour where non-ref sensors can
   // still move via a variable sensor_from_rig.
-  SetPRNGSeed(0);
   Reconstruction reconstruction;
   SyntheticDatasetOptions synthetic_dataset_options;
   synthetic_dataset_options.num_rigs = 1;
@@ -1268,7 +1256,6 @@ TEST(DefaultBundleAdjuster,
   // 2 rigs × 3 cameras × 5 frames = 30 images. Mirrors the Ceres
   // NominalMultiCameraRig test to verify Caspar converges to GT at the same
   // scale as the single-camera nominal test.
-  SetPRNGSeed(0);
   Reconstruction gt_reconstruction;
   SyntheticDatasetOptions synthetic_dataset_options;
   synthetic_dataset_options.num_rigs = 2;
